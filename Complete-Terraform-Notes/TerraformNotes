@@ -1,0 +1,1397 @@
+# TERRAFORM COMPLETE NOTES
+### Beginner to Advanced | Simple English + Hinglish
+
+# 1. What is Terraform?
+
+Terraform is an **Infrastructure as Code (IaC)** tool developed by HashiCorp.
+
+It is used to create, manage and delete cloud infrastructure using code instead of manually creating resources from the AWS Console.
+
+### Simple example
+
+Suppose you want to create:
+- 2 EC2 instances
+- 1 S3 bucket
+- 1 VPC
+- 1 Security Group
+
+Without Terraform, you create everything manually in AWS Console.
+
+With Terraform, you write code and execute:
+
+```bash
+terraform apply
+```
+
+Terraform creates the infrastructure automatically.
+
+### Important points
+- Terraform is an open-source tool.
+- It is written in Go language.
+- It supports AWS, Azure, Google Cloud and other providers.
+- It uses HCL (HashiCorp Configuration Language).
+- It follows Infrastructure as Code (IaC).
+
+# 2. Benefits of Infrastructure as Code (IaC)
+
+IaC means managing infrastructure through code rather than manually.
+
+### 1. Speed and Simplicity
+We can create multiple resources quickly using code.
+
+### 2. Team Collaboration
+Multiple developers can work on the same infrastructure code using GitHub.
+
+### 3. Error Reduction
+Code provides a consistent configuration and reduces manual mistakes.
+
+### 4. Disaster Recovery
+If infrastructure is destroyed, we can recreate it using the saved configuration.
+
+### 5. Enhanced Security
+Automation reduces manual errors and helps maintain consistent configurations.
+
+# 3. Terraform Folder Structure
+
+A Terraform project can contain multiple `.tf` files.
+
+Example:
+
+```text
+project/
+│
+├── provider.tf
+├── version.tf
+├── backend.tf
+├── main.tf
+├── variables.tf
+├── terraform.tfvars
+├── locals.tf
+├── data.tf
+└── outputs.tf
+```
+
+### Purpose of each file
+
+| File | Purpose |
+|---|---|
+| provider.tf | Provider and Terraform configuration |
+| version.tf | Terraform/provider version requirements |
+| backend.tf | State storage configuration |
+| main.tf | Main resource configurations |
+| variables.tf | Input variable declarations |
+| terraform.tfvars | Variable values |
+| locals.tf | Local values |
+| data.tf | Data sources |
+| outputs.tf | Display output values |
+
+**Remember:** Terraform does not require these exact filenames. They are used to organize code properly.
+
+# 4. Important Terraform Commands
+
+### Version
+
+```bash
+terraform --version
+```
+Checks the installed Terraform version.
+
+### Initialize
+
+```bash
+terraform init
+```
+Initializes the working directory and downloads required providers.
+
+```bash
+terraform init -input=true
+```
+Allows Terraform to ask for input when required.
+
+```bash
+terraform init -lock=false
+```
+Disables state locking during initialization where applicable. Avoid disabling locking in normal team workflows.
+
+### Format and Validate
+
+```bash
+terraform fmt
+```
+Formats Terraform files.
+
+```bash
+terraform validate
+```
+Checks whether the configuration is valid.
+
+### Plan
+
+```bash
+terraform plan
+```
+Shows what Terraform will create, modify or destroy.
+
+It is like a dry run. It does not apply the changes.
+
+### Apply
+
+```bash
+terraform apply
+```
+Creates or updates infrastructure.
+
+```bash
+terraform apply -auto-approve
+```
+Applies changes without asking for confirmation.
+
+### Destroy
+
+```bash
+terraform destroy
+```
+Deletes infrastructure managed by Terraform.
+
+```bash
+terraform destroy -auto-approve
+```
+Deletes without asking for confirmation.
+
+**Important:** Always review the plan before applying or destroying resources.
+
+# 5. Terraform State File
+
+### What is a State File?
+
+Terraform state file is a file that stores information about infrastructure managed by Terraform.
+
+Default filename:
+
+```text
+terraform.tfstate
+```
+
+### Why do we need a state file?
+
+Suppose you create an EC2 instance using Terraform.
+
+AWS generates an instance ID:
+
+```text
+i-0123456789abcdef0
+```
+
+Terraform stores information about this instance in its state file.
+
+The state file helps Terraform:
+- Identify existing resources.
+- Connect configuration with real AWS resources.
+- Track resource IDs.
+- Understand infrastructure changes.
+
+### Local State
+
+By default, Terraform stores state locally.
+
+```text
+terraform.tfstate
+```
+
+Problem: If multiple team members use different local state files, they may not have the latest infrastructure information.
+
+### Remote State
+
+Remote state means storing the Terraform state file in a remote storage service.
+
+Example: AWS S3.
+
+Benefits:
+- Team members can share state.
+- Centralized state management.
+- Better collaboration.
+
+### State Locking
+
+State locking prevents multiple users from modifying the same state simultaneously.
+
+Example:
+
+If Developer A is running `terraform apply`, Developer B should not modify the same state at the same time.
+
+This helps prevent state corruption.
+
+# 6. S3 Backend Configuration
+
+We can store Terraform state in an S3 bucket.
+
+Example:
+
+```hcl
+terraform {
+  backend "s3" {
+    bucket         = "my-terraform-state-bucket"
+    key            = "terraform.tfstate"
+    region         = "us-east-1"
+    encrypt        = true
+    dynamodb_table = "terraform-state-lock-dynamo"
+  }
+}
+```
+
+### Explanation
+
+| Attribute | Purpose |
+|---|---|
+| bucket | S3 bucket name |
+| key | State file location inside bucket |
+| region | AWS region |
+| encrypt | Enables encryption |
+| dynamodb_table | Locking table in older S3 backend configurations |
+
+### DynamoDB Table
+
+Example:
+
+```hcl
+resource "aws_dynamodb_table" "state_lock" {
+  name         = "terraform-state-lock-dynamo"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "LockID"
+
+  attribute {
+    name = "LockID"
+    type = "S"
+  }
+}
+```
+
+DynamoDB can be used for state locking with older S3 backend configurations. Newer S3 backend versions also support native lock files through `use_lockfile`.
+
+**Important:** The S3 bucket and locking mechanism must be prepared before configuring the backend. Backend resources cannot be created using the same backend configuration before it exists.
+
+# 7. Data Sources
+
+### What is a Data Source?
+
+A data source is used to get information about an existing resource.
+
+**Simple difference:**
+
+- Resource = Creates infrastructure.
+- Data Source = Fetches information about existing infrastructure.
+
+### Example 1: Get existing VPC
+
+```hcl
+data "aws_vpc" "existing" {
+  id = "vpc-xxxxxxxx"
+}
+```
+
+### Example 2: Get existing Subnet
+
+```hcl
+data "aws_subnet" "existing" {
+  id = "subnet-xxxxxxxx"
+}
+```
+
+### Example 3: Create Security Group using existing VPC
+
+```hcl
+resource "aws_security_group" "demo" {
+  name   = "demo-sg"
+  vpc_id = data.aws_vpc.existing.id
+
+  ingress {
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["YOUR_PUBLIC_IP/32"]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+```
+
+### Example 4: Get existing AMI dynamically
+
+```hcl
+data "aws_ami" "amzlinux" {
+  most_recent = true
+  owners      = ["amazon"]
+
+  filter {
+    name   = "name"
+    values = ["amzn2-ami-hvm-*-gp2"]
+  }
+
+  filter {
+    name   = "root-device-type"
+    values = ["ebs"]
+  }
+
+  filter {
+    name   = "virtualization-type"
+    values = ["hvm"]
+  }
+
+  filter {
+    name   = "architecture"
+    values = ["x86_64"]
+  }
+}
+```
+
+Create EC2 using the AMI:
+
+```hcl
+resource "aws_instance" "dev" {
+  ami           = data.aws_ami.amzlinux.id
+  instance_type = "t2.micro"
+}
+```
+
+Here:
+
+`data.aws_ami.amzlinux.id`
+
+Returns the AMI ID fetched by the data source.
+
+# 8. Terraform Import
+
+### What is Terraform Import?
+
+Terraform Import is used to bring an already existing AWS resource under Terraform management.
+
+### Why do we use Import?
+
+Suppose you created an EC2 instance manually using AWS Console.
+
+Now you want Terraform to manage that EC2 instance.
+
+Instead of creating another instance, you can import the existing instance into Terraform state.
+
+### Steps to import EC2
+
+**Step 1: Create EC2 manually**
+
+Example:
+
+```text
+Instance Name: MyVM
+Instance ID: i-0123456789abcdef0
+Instance Type: t2.micro
+```
+
+**Step 2: Configure AWS provider**
+
+```hcl
+provider "aws" {
+  region = "us-east-1"
+}
+```
+
+**Step 3: Create resource block**
+
+```hcl
+resource "aws_instance" "myvm" {
+  ami           = "ami-xxxxxxxx"
+  instance_type = "t2.micro"
+}
+```
+
+**Step 4: Initialize Terraform**
+
+```bash
+terraform init
+```
+
+**Step 5: Import existing EC2**
+
+```bash
+terraform import aws_instance.myvm i-0123456789abcdef0
+```
+
+### Understand the command
+
+```text
+terraform import RESOURCE_ADDRESS RESOURCE_ID
+```
+
+- `aws_instance.myvm` = Terraform resource address.
+- `i-0123456789abcdef0` = Existing AWS EC2 instance ID.
+
+**Step 6: Check State**
+
+```bash
+terraform state list
+```
+
+**Step 7: Check Plan**
+
+```bash
+terraform plan
+```
+
+Terraform may show changes because your configuration does not yet match the imported EC2 instance.
+
+Update your configuration to match the actual infrastructure.
+
+Run again:
+
+```bash
+terraform plan
+```
+
+Expected output when everything matches:
+
+```text
+No changes. Your infrastructure matches the configuration.
+```
+
+### Important points
+
+- Import does not create a new resource.
+- Import brings an existing resource into Terraform state.
+- You must write the corresponding resource configuration yourself when using the traditional CLI import command.
+- Always check `terraform plan` after importing.
+
+# 9. Meta-Arguments
+
+Meta-arguments are special arguments that control how Terraform creates and manages resources.
+
+Important meta-arguments:
+
+| Meta-argument | Purpose |
+|---|---|
+| depends_on | Defines dependency |
+| count | Creates multiple resources |
+| for_each | Creates resources using map or set |
+| lifecycle | Controls resource lifecycle |
+| provider | Selects provider configuration |
+| provisioner | Executes commands or scripts |
+| connection | Defines remote connection |
+| variable | Declares input variables |
+| output | Displays output values |
+| locals | Defines local values |
+
+# 10. depends_on
+
+### What is depends_on?
+
+`depends_on` is used when one resource must be created before another resource.
+
+Terraform automatically detects many dependencies through resource references.
+
+But sometimes dependencies are not directly visible in the code. In those situations, we use `depends_on`.
+
+### Example
+
+```hcl
+resource "aws_s3_bucket" "example" {
+  bucket = "my-unique-demo-bucket-12345"
+}
+
+resource "aws_instance" "dev" {
+  ami           = "ami-xxxxxxxx"
+  instance_type = "t2.micro"
+
+  depends_on = [
+    aws_s3_bucket.example
+  ]
+}
+```
+
+### Explanation
+
+First Terraform creates the S3 bucket.
+
+After that, Terraform creates the EC2 instance.
+
+If S3 creation fails, the dependent EC2 creation will not proceed.
+
+**Remember:** depends_on = Explicit dependency.
+
+# 11. Count Meta-Argument
+
+### What is count?
+
+By default, one resource block creates one resource.
+
+If we want multiple similar resources, we can use `count`.
+
+### Example 1: Create two EC2 instances
+
+```hcl
+resource "aws_instance" "myec2" {
+  ami           = "ami-xxxxxxxx"
+  instance_type = "t2.micro"
+
+  count = 2
+
+  tags = {
+    Name = "webec2-${count.index}"
+  }
+}
+```
+
+### Output
+
+```text
+webec2-0
+webec2-1
+```
+
+### What is count.index?
+
+`count.index` gives the index number of each resource.
+
+Index starts from 0.
+
+### Example 2: Using Variables
+
+```hcl
+variable "ami" {
+  type    = string
+  default = "ami-xxxxxxxx"
+}
+
+variable "instance_type" {
+  type    = string
+  default = "t2.micro"
+}
+
+variable "sandboxes" {
+  type = list(string)
+
+  default = [
+    "sandbox_server_two",
+    "sandbox_server_three"
+  ]
+}
+```
+
+Main configuration:
+
+```hcl
+resource "aws_instance" "sandbox" {
+  ami           = var.ami
+  instance_type = var.instance_type
+
+  count = length(var.sandboxes)
+
+  tags = {
+    Name = var.sandboxes[count.index]
+  }
+}
+```
+
+Here `length()` counts the number of elements in the list.
+
+If the list has two elements, Terraform creates two EC2 instances.
+
+**Remember:** count = Number of resources.
+
+# 12. for_each Meta-Argument
+
+### What is for_each?
+
+`for_each` is used to create multiple resources using a map or set of strings.
+
+It gives each resource a unique key.
+
+### Important terms
+
+- `each.key` = Key of the map or set member.
+- `each.value` = Value associated with that key or set member.
+
+### Example
+
+variables.tf:
+
+```hcl
+variable "ami" {
+  type    = string
+  default = "ami-xxxxxxxx"
+}
+
+variable "instance_type" {
+  type    = string
+  default = "t2.micro"
+}
+
+variable "sandboxes" {
+  type = set(string)
+
+  default = [
+    "sandbox_one",
+    "sandbox_two",
+    "sandbox_three"
+  ]
+}
+```
+
+main.tf:
+
+```hcl
+resource "aws_instance" "sandbox" {
+  ami           = var.ami
+  instance_type = var.instance_type
+
+  for_each = var.sandboxes
+
+  tags = {
+    Name = each.value
+  }
+}
+```
+
+### Output
+
+```text
+sandbox_one
+sandbox_two
+sandbox_three
+```
+
+Terraform creates three EC2 instances.
+
+### Difference between count and for_each
+
+| count | for_each |
+|---|---|
+| Uses a number | Uses a map or set |
+| Uses count.index | Uses each.key and each.value |
+| Identifies resources by index | Identifies resources by key |
+| Good for identical instances | Good for named resources |
+
+# 13. Multiple Providers / Alias Providers
+
+### What is a Provider?
+
+A provider is a plugin that allows Terraform to communicate with cloud platforms like AWS.
+
+Sometimes we need to create resources in multiple AWS regions.
+
+For that, we use provider aliases.
+
+### Example
+
+```hcl
+# Default provider
+provider "aws" {
+  region = "ap-south-1"
+}
+
+# Second provider
+provider "aws" {
+  alias  = "america"
+  region = "us-east-1"
+}
+```
+
+### Create resources using providers
+
+```hcl
+resource "aws_s3_bucket" "india" {
+  bucket = "my-unique-india-bucket-12345"
+}
+
+resource "aws_s3_bucket" "america" {
+  bucket   = "my-unique-america-bucket-12345"
+  provider = aws.america
+}
+```
+
+### Explanation
+
+- First S3 bucket uses the default provider.
+- Second S3 bucket uses the provider alias `america`.
+
+**Remember:** Alias is used when we need multiple configurations of the same provider.
+
+# 14. Lifecycle Meta-Argument
+
+### What is Lifecycle?
+
+Lifecycle controls how Terraform creates, updates, replaces and destroys resources.
+
+There are three important lifecycle rules.
+
+## 1. create_before_destroy
+
+Normally Terraform destroys the old resource and then creates the new one when replacement is needed.
+
+With this rule, Terraform creates the new resource first and then destroys the old resource.
+
+Example:
+
+```hcl
+resource "aws_instance" "test" {
+  ami           = "ami-xxxxxxxx"
+  instance_type = "t2.micro"
+
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+```
+
+Use: To reduce downtime during replacement.
+
+## 2. prevent_destroy
+
+Prevents Terraform from destroying a resource while this rule is configured.
+
+Example:
+
+```hcl
+resource "aws_instance" "test" {
+  ami           = "ami-xxxxxxxx"
+  instance_type = "t2.micro"
+
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+```
+
+Use: To protect important resources.
+
+If Terraform tries to destroy this resource, it will show an error.
+
+## 3. ignore_changes
+
+Tells Terraform to ignore changes to selected attributes when checking for configuration differences.
+
+Example:
+
+```hcl
+resource "aws_instance" "test" {
+  ami           = "ami-xxxxxxxx"
+  instance_type = "t2.micro"
+
+  tags = {
+    Name = "test"
+  }
+
+  lifecycle {
+    ignore_changes = [
+      tags
+    ]
+  }
+}
+```
+
+Use: When some attributes are modified outside Terraform and you don't want Terraform to overwrite them.
+
+### Lifecycle summary
+
+| Rule | Meaning |
+|---|---|
+| create_before_destroy | Create new first, destroy old later |
+| prevent_destroy | Prevent destruction |
+| ignore_changes | Ignore selected external changes |
+
+# 15. Locals
+
+### What are Locals?
+
+Locals are used to store values or expressions that we want to reuse multiple times.
+
+They help avoid repeating the same expressions.
+
+### Example
+
+```hcl
+variable "layer" {
+  default = "web"
+}
+
+variable "env" {
+  default = "dev"
+}
+
+locals {
+  bucket_name = "${var.layer}-${var.env}-bucket-demo"
+}
+```
+
+Use local value:
+
+```hcl
+resource "aws_s3_bucket" "demo" {
+  bucket = local.bucket_name
+
+  tags = {
+    Name        = local.bucket_name
+    Environment = var.env
+  }
+}
+```
+
+### Output
+
+```text
+web-dev-bucket-demo
+```
+
+### Difference between Variables and Locals
+
+| Variables | Locals |
+|---|---|
+| Input values | Internal values |
+| Can be provided by users | Calculated inside configuration |
+| Access using var.name | Access using local.name |
+
+# 16. Provisioners
+
+### What are Provisioners?
+
+Provisioners are used to execute commands or perform actions on local or remote machines after infrastructure is created.
+
+There are three important provisioners.
+
+## 1. File Provisioner
+
+Used to copy files from your local computer to a remote machine.
+
+Example:
+
+```hcl
+resource "aws_instance" "web" {
+  ami           = "ami-xxxxxxxx"
+  instance_type = "t2.micro"
+
+  provisioner "file" {
+    source      = "conf/myapp.conf"
+    destination = "/tmp/myapp.conf"
+  }
+}
+```
+
+Use: Copy configuration files to EC2.
+
+## 2. local-exec Provisioner
+
+Executes commands on the local machine where Terraform is running.
+
+Example:
+
+```hcl
+resource "aws_instance" "web" {
+  ami           = "ami-xxxxxxxx"
+  instance_type = "t2.micro"
+
+  provisioner "local-exec" {
+    command = "echo Instance created successfully"
+  }
+}
+```
+
+Use: Run local commands after resource creation.
+
+## 3. remote-exec Provisioner
+
+Executes commands on a remote machine, such as an EC2 instance.
+
+Example:
+
+```hcl
+resource "aws_instance" "web" {
+  ami           = "ami-xxxxxxxx"
+  instance_type = "t2.micro"
+
+  provisioner "remote-exec" {
+    inline = [
+      "sudo yum update -y",
+      "sudo yum install git -y",
+      "sudo yum install tree -y"
+    ]
+  }
+
+  connection {
+    type        = "ssh"
+    user        = "ec2-user"
+    private_key = file("my-key.pem")
+    host        = self.public_ip
+  }
+}
+```
+
+Use: Install packages or execute commands on EC2.
+
+### Difference between provisioners
+
+| Provisioner | Executes where? |
+|---|---|
+| file | Copies files to remote machine |
+| local-exec | Local computer |
+| remote-exec | Remote server |
+
+**Important:** Provisioners are generally a last resort. Prefer cloud-init, User Data or configuration management tools when possible.
+
+# 17. Terraform Modules
+
+### What is a Module?
+
+A Terraform module is a collection of Terraform configuration files used to create reusable infrastructure.
+
+Simple example:
+
+Suppose you need to create EC2 instances in multiple projects.
+
+Instead of writing the same EC2 code repeatedly, you can create one EC2 module and reuse it.
+
+### Benefits of Modules
+
+1. Reusability – Use the same code multiple times.
+2. Abstraction – Hide complex resource configurations.
+3. Encapsulation – Organize resources together.
+4. Versioning – Track module versions.
+5. Collaboration – Share modules with team members.
+
+## Example 1: VPC Module
+
+Folder structure:
+
+```text
+modules/
+└── vpc/
+    ├── main.tf
+    └── variables.tf
+```
+
+modules/vpc/main.tf:
+
+```hcl
+resource "aws_vpc" "example" {
+  cidr_block = var.cidr_block
+
+  tags = {
+    Name = var.name
+  }
+}
+```
+
+modules/vpc/variables.tf:
+
+```hcl
+variable "cidr_block" {
+  type = string
+}
+
+variable "name" {
+  type = string
+}
+```
+
+Root main.tf:
+
+```hcl
+module "my_vpc" {
+  source     = "./modules/vpc"
+  cidr_block = "10.0.0.0/16"
+  name       = "my-vpc"
+}
+```
+
+Here we are calling the VPC module from the root module.
+
+## Example 2: EC2 Module
+
+Folder structure:
+
+```text
+modules/
+└── ec2/
+    ├── main.tf
+    └── variables.tf
+```
+
+modules/ec2/main.tf:
+
+```hcl
+resource "aws_instance" "example" {
+  ami           = var.ami
+  instance_type = var.instance_type
+  subnet_id     = var.subnet_id
+  key_name      = var.key_name
+
+  tags = {
+    Name = var.name
+  }
+}
+```
+
+modules/ec2/variables.tf:
+
+```hcl
+variable "ami" {
+  type = string
+}
+
+variable "instance_type" {
+  type = string
+}
+
+variable "subnet_id" {
+  type = string
+}
+
+variable "key_name" {
+  type = string
+}
+
+variable "name" {
+  type = string
+}
+```
+
+Root main.tf:
+
+```hcl
+module "my_ec2" {
+  source        = "./modules/ec2"
+  ami           = "ami-xxxxxxxx"
+  instance_type = "t2.micro"
+  subnet_id     = "subnet-xxxxxxxx"
+  key_name      = "my-key-pair"
+  name          = "my-ec2-instance"
+}
+```
+
+### Important Module Terms
+
+| Term | Meaning |
+|---|---|
+| Root module | Main Terraform project |
+| Child module | Module called by root module |
+| source | Location of module |
+| Input variables | Values passed into module |
+| Outputs | Values returned from module |
+
+Modules can also be sourced from GitHub or Terraform Registry.
+
+# 18. Connection Block
+
+### What is a Connection Block?
+
+A connection block defines how Terraform connects to a remote resource.
+
+For example, Terraform needs SSH details to connect to an EC2 instance.
+
+Example:
+
+```hcl
+connection {
+  type        = "ssh"
+  user        = "ubuntu"
+  private_key = file("my-key.pem")
+  host        = self.public_ip
+}
+```
+
+### Explanation
+
+| Attribute | Meaning |
+|---|---|
+| type | Connection type |
+| user | Remote username |
+| private_key | SSH private key |
+| host | Remote server IP |
+
+Common connection types:
+- SSH – Linux servers.
+- WinRM – Windows servers.
+
+Connection blocks are commonly used with file and remote-exec provisioners.
+
+# 19. Output Values
+
+### What are Outputs?
+
+Output values display useful information about created infrastructure.
+
+For example:
+- EC2 public IP
+- EC2 instance ID
+- Public DNS
+- Resource ARN
+
+### Example
+
+```hcl
+output "instance_public_ip" {
+  value = aws_instance.test.public_ip
+}
+
+output "instance_id" {
+  value = aws_instance.test.id
+}
+
+output "instance_public_dns" {
+  value = aws_instance.test.public_dns
+}
+
+output "instance_arn" {
+  value = aws_instance.test.arn
+}
+```
+
+### How to view outputs?
+
+```bash
+terraform output
+```
+
+To view a particular output:
+
+```bash
+terraform output instance_id
+```
+
+### Sensitive Output
+
+```hcl
+output "instance_public_ip" {
+  value     = aws_instance.test.public_ip
+  sensitive = true
+}
+```
+
+`sensitive = true` hides the value in normal CLI output, but does not encrypt the value in state.
+
+# 20. Variable Validation / Conditions
+
+### What is Variable Validation?
+
+Variable validation allows us to check whether the user has entered an allowed value.
+
+Example:
+
+```hcl
+variable "aws_region" {
+  description = "AWS region"
+  type        = string
+  nullable    = false
+  default     = "us-west-2"
+
+  validation {
+    condition = (
+      var.aws_region == "us-west-2" ||
+      var.aws_region == "eu-west-1"
+    )
+
+    error_message = "Allowed regions are us-west-2 and eu-west-1."
+  }
+}
+```
+
+Provider:
+
+```hcl
+provider "aws" {
+  region = var.aws_region
+}
+```
+
+### Explanation
+
+The user can select only:
+
+- us-west-2
+- eu-west-1
+
+If any other region is entered, Terraform returns the validation error.
+
+**Remember:** Variable validation helps prevent invalid input values.
+
+---
+
+# 21. Quick Revision – Important Differences
+
+| Topic | Simple meaning |
+|---|---|
+| Terraform | Infrastructure as Code tool |
+| IaC | Manage infrastructure through code |
+| Provider | Connects Terraform to AWS/Azure |
+| Resource | Creates infrastructure |
+| Data Source | Reads existing infrastructure |
+| State File | Stores resource information |
+| Remote State | Stores state remotely |
+| State Lock | Prevents simultaneous state modifications |
+| Import | Brings existing resources into Terraform management |
+| depends_on | Defines dependency |
+| count | Creates multiple resources using a number |
+| for_each | Creates multiple resources using a map or set |
+| Lifecycle | Controls resource creation and deletion behavior |
+| Locals | Stores reusable expressions |
+| Provisioner | Executes commands or transfers files |
+| Module | Reusable Terraform configuration |
+| Connection | Defines remote connection details |
+| Output | Displays resource information |
+| Validation | Checks input values |
+
+# 22. Important Interview Questions
+
+**Q1. What is Terraform?**
+
+Terraform is an Infrastructure as Code tool used to automate cloud infrastructure provisioning and management.
+
+**Q2. What is IaC?**
+
+IaC means managing infrastructure using code instead of manual configuration.
+
+**Q3. What is a Provider?**
+
+A provider is a plugin that allows Terraform to communicate with cloud platforms like AWS.
+
+**Q4. What is a Resource?**
+
+A resource is used to create and manage infrastructure.
+
+**Q5. What is a Data Source?**
+
+A data source retrieves information about existing infrastructure.
+
+**Q6. What is a State File?**
+
+A state file stores information about infrastructure managed by Terraform.
+
+**Q7. What is Remote State?**
+
+Remote state stores Terraform state in remote storage so teams can share it.
+
+**Q8. What is State Locking?**
+
+It prevents multiple users from modifying the same state simultaneously.
+
+**Q9. What is Terraform Import?**
+
+It imports existing infrastructure into Terraform state.
+
+**Q10. What is depends_on?**
+
+It defines an explicit dependency between resources.
+
+**Q11. Difference between count and for_each?**
+
+Count uses a number to create resources. For_each uses a map or set to create resources.
+
+**Q12. What is Lifecycle?**
+
+Lifecycle controls how Terraform creates, updates and destroys resources.
+
+**Q13. What are Provisioners?**
+
+Provisioners execute commands or transfer files on local or remote machines.
+
+**Q14. What is a Module?**
+
+A module is a reusable collection of Terraform configuration files.
+
+**Q15. What is the difference between local-exec and remote-exec?**
+
+Local-exec runs commands on the local computer, whereas remote-exec runs commands on a remote server.
+
+**Q16. What are Outputs?**
+
+Outputs display useful information about infrastructure, such as public IP and instance ID.
+
+**Q17. What are Locals?**
+
+Locals store reusable values and expressions inside a Terraform configuration.
+
+**Q18. What is Variable Validation?**
+
+It checks whether input values satisfy specified conditions.
+
+---
+
+# 23. Daily Terraform Command Revision
+
+```bash
+# Initialize
+terraform init
+
+# Format
+terraform fmt
+
+# Validate
+terraform validate
+
+# Check plan
+terraform plan
+
+# Create infrastructure
+terraform apply
+
+# Delete infrastructure
+terraform destroy
+
+# List state resources
+terraform state list
+
+# Show state
+terraform show
+
+# View outputs
+terraform output
+
+# List workspaces
+terraform workspace list
+
+# Show current workspace
+terraform workspace show
+```
+
+# 24. Terraform Workspace Commands
+
+```bash
+# Create workspace
+terraform workspace new dev
+
+# List workspaces
+terraform workspace list
+
+# Select workspace
+terraform workspace select dev
+
+# Show current workspace
+terraform workspace show
+
+# Delete workspace
+terraform workspace delete dev
+```
+
+A workspace allows us to maintain separate state instances for different environments using the same configuration.
+
+**Note:** A workspace is not a complete replacement for separate configurations or environments when stronger isolation is required.
+
+---
+
+## Final Revision Strategy
+
+Study these topics in this order:
+
+1. Terraform basics and commands.
+2. Provider, Resource and Data Source.
+3. State File and Remote Backend.
+4. Import.
+5. Variables, Locals and Outputs.
+6. Meta-Arguments.
+7. Count and For Each.
+8. Lifecycle and Dependencies.
+9. Provisioners and Connection.
+10. Modules.
+11. Variable Validation.
+
+**Goal:** Understand the concept first, then practice the code in your AWS account. Don't just memorize commands.
